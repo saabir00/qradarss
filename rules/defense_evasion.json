@@ -22,7 +22,7 @@
     "relevance": 10,
     "response_action": "create_offense"
   },
-  "aql": "SELECT QIDNAME(qid) as EventName, sourceIP, destinationIP, username, LOGSOURCENAME(logsourceid) as LogSource, payload, starttime FROM events WHERE LOGSOURCENAME(logsourceid) ILIKE '%LinuxServer%' AND (payload ILIKE '%/var/log%' OR payload ILIKE '%auditd%' OR payload ILIKE '%history -c%' OR payload ILIKE '%rsyslog%') ORDER BY starttime DESC LAST 300 SECONDS",
+  "aql": "LOGSOURCENAME(logsourceid) ILIKE '%LinuxServer%' AND (payload ILIKE '%base64%' OR payload ILIKE '%/dev/tcp%' OR payload ILIKE '%mkfifo%' OR payload ILIKE '%0>&1%')",
   "falsepositives": ["Authorized log rotation", "System maintenance scripts"],
   "level": "critical"
 }
