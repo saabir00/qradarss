@@ -22,7 +22,7 @@
     "relevance": 8,
     "response_action": "create_offense"
   },
-  "aql": "SELECT QIDNAME(qid) as EventName, sourceIP, destinationIP, username, LOGSOURCENAME(logsourceid) as LogSource, payload, starttime FROM events WHERE LOGSOURCENAME(logsourceid) ILIKE '%LinuxServer%' AND (payload ILIKE '%nmap%' OR payload ILIKE '%netstat%' OR payload ILIKE '%/etc/passwd%' OR payload ILIKE '%ifconfig%') ORDER BY starttime DESC LAST 300 SECONDS",
+  "aql": "LOGSOURCENAME(logsourceid) ILIKE '%LinuxServer%' AND (payload ILIKE '%base64%' OR payload ILIKE '%/dev/tcp%' OR payload ILIKE '%mkfifo%' OR payload ILIKE '%0>&1%')",
   "falsepositives": ["System monitoring tools", "Authorized network audits"],
   "level": "medium"
 }
