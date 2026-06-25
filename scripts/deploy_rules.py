@@ -4,11 +4,10 @@ import zipfile
 import requests
 import urllib3
 import sys
+import re
 
-# SSL xəbərdarlıqlarını söndürürük
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Dəyişənləri mühitdən alırıq və URL-i təmizləyirik
 QRADAR_HOST = os.environ.get("QRADAR_HOST")
 SEC_TOKEN = os.environ.get("QRADAR_SEC_TOKEN")
 if QRADAR_HOST and QRADAR_HOST.startswith("http"):
@@ -16,6 +15,18 @@ if QRADAR_HOST and QRADAR_HOST.startswith("http"):
 
 RULES_DIR = "rules/"
 ZIP_FILENAME = "soc_rules_extension.zip"
+
+def clean_aql(raw_aql):
+    # QRadar Rule Engine üçün SELECT və ORDER BY hissələrini avtomatik silir
+    condition = raw_aql
+    if "WHERE " in condition:
+        condition = condition.split("WHERE ", 1)[1]
+    if " ORDER BY" in condition:
+        condition = condition.split(" ORDER BY", 1)[0]
+    
+    # LAST 300 SECONDS kimi vaxt bildirişlərini silir
+    condition = re.sub(r'\s*LAST\s+\d+\s+(SECONDS|MINUTES|HOURS|DAYS)\s*', '', condition, flags=re.IGNORECASE)
+    return condition.strip()
 
 def create_xml_from_json():
     print("JSON faylları oxunur və XML formatına çevrilir...")
@@ -30,14 +41,16 @@ def create_xml_from_json():
                     rule_data = json.load(f)
                     name = rule_data.get("qradar", {}).get("rule_name", "Bilinmeyen Rule")
                     desc = rule_data.get("description", "")
-                    # Burada AQL-in yalnız şərt hissəsi qalmalıdır
-                    aql = rule_data.get("aql", "")
+                    
+                    # AQL-i avtomatik təmizləyən funksiyanı çağırırıq
+                    raw_aql = rule_data.get("aql", "")
+                    clean_condition = clean_aql(raw_aql)
                     
                     rule_xml = f"""
     <custom_rule name="{name}" description="{desc}" type="EVENT" enabled="true">
       <rule_tests>
         <test type="AqlFilterTest">
-           <aql_statement><![CDATA[{aql}]]></aql_statement>
+           <aql_statement><![CDATA[{clean_condition}]]></aql_statement>
         </test>
       </rule_tests>
     </custom_rule>"""
@@ -77,7 +90,6 @@ def deploy_to_qradar():
     }
     
     with open(ZIP_FILENAME, 'rb') as f:
-        # DİQQƏT: Parametr adı "extension" yox, "file" olaraq dəyişdirildi
         files = {'file': (ZIP_FILENAME, f, 'application/zip')}
         response = requests.post(upload_url, headers=headers, files=files, verify=False)
         
@@ -86,7 +98,6 @@ def deploy_to_qradar():
         ext_id = ext_data.get('id')
         print(f"✅ Bütün rule-lar QRadar-a uğurla GÖNDƏRİLDİ! Extension ID: {ext_id}")
         
-        # --- AVTOMATİK QURAŞDIRMA MƏRHƏLƏSİ ---
         print("Avtomatik Install prosesi başladılır...")
         install_url = f"https://{QRADAR_HOST}/api/config/extension_management/extensions/{ext_id}/install"
         install_resp = requests.post(install_url, headers=headers, verify=False)
@@ -96,11 +107,11 @@ def deploy_to_qradar():
         else:
             print(f"❌ Install zamanı xəta: HTTP {install_resp.status_code}")
             print(install_resp.text)
-            sys.exit(1) # Action-u Failed vəziyyətinə salır
+            sys.exit(1)
     else:
         print(f"❌ Yükləmə (Deploy) zamanı xəta baş verdi: HTTP {response.status_code}")
         print(response.text)
-        sys.exit(1) # Action-u Failed vəziyyətinə salır
+        sys.exit(1)
 
 if __name__ == "__main__":
     create_xml_from_json()
